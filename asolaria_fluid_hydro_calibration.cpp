@@ -230,8 +230,8 @@ static MacroscopicMoments compute_moments(const vector<std::uint8_t>& f, const a
     m.uy = static_cast<double>(total_py) / total_mass;
     m.uz = static_cast<double>(total_pz) / total_mass;
 
-    // Equation of state pressure: P = 1/3 Tr(Pi) = 1/3 sum n_i c_i^2 / V = 1/6 (energy2) / V
-    m.P_iso = (static_cast<double>(total_energy2) / 6.0) / V;
+    // Mechanical pressure from momentum flux trace: P = 1/3 Tr(Pi) = 1/3 sum n_i |c_i|^2 / V = (2E) / (3V)
+    m.P_iso = (static_cast<double>(total_energy2) / 3.0) / V;
     m.Pi_xx = static_cast<double>(pi_xx) / V;
     m.Pi_yy = static_cast<double>(pi_yy) / V;
     m.Pi_zz = static_cast<double>(pi_zz) / V;
@@ -271,13 +271,19 @@ int main(int argc, char** argv) {
     std::cout << "=== INITIAL THERMODYNAMIC & MACROSCOPIC STATE ===\n";
     std::cout << "Number density rho0      : " << m0.rho << " trits/cell\n";
     std::cout << "Mean bulk velocity (ux)  : " << m0.ux << " (uy=" << m0.uy << ", uz=" << m0.uz << ")\n";
-    std::cout << "Isotropic Pressure P0    : " << m0.P_iso << " (energy2/6V)\n";
+    std::cout << "Isotropic Pressure P0    : " << m0.P_iso << " (Tr(Pi)/(3V) = 2E/(3V))\n";
     
-    // Ideal Gas / Lattice Gas Sound Speed: c_s^2 = P / rho = (1/3) <c^2>
+    // In an unweighted D3Q27 lattice gas, sum_i |c_i|^2 = 54 across 27 channels,
+    // so <|c|^2> = 54/27 = 2. Thus P = (2/3) * rho0, and cs^2 = dP/drho = 2/3.
+    // (Weighted polynomial Lattice Boltzmann models enforce cs^2 = 1/3).
     double cs2 = m0.P_iso / m0.rho;
     double cs = std::sqrt(cs2);
+    double cs2_theory = 2.0 / 3.0;
+    double cs_theory = std::sqrt(cs2_theory);
     std::cout << "Speed of Sound (c_s)     : " << cs << " lattice units/tick (cs^2 = " << cs2 << ")\n";
-    std::cout << "Ratio cs^2 / (1/3)       : " << cs2 / (1.0 / 3.0) << " (deviation from ideal monoatomic D3Q27)\n\n";
+    std::cout << "Theoretical c_s (D3Q27)  : " << cs_theory << " lattice units/tick (cs^2 = 2/3)\n";
+    std::cout << "Ratio cs^2 / (2/3)       : " << cs2 / cs2_theory << " (relative error: "
+              << ((cs2 - cs2_theory) / cs2_theory * 100.0) << "%)\n\n";
 
     std::cout << "=== TIME EVOLUTION & VISCOUS RELAXATION TRACKING ===\n";
     std::cout << "Tick | Shear Contrast | ln(S0/St) | Decay Rate gamma | nu_eff (viscosity)\n";
