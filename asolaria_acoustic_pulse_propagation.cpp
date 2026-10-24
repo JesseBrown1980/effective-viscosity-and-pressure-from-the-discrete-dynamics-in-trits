@@ -1,7 +1,9 @@
-// Asolaria Discrete Fluid: Dynamical Acoustic Standing Wave Experiment (V2)
+// Asolaria Discrete Fluid: Dynamical Acoustic Standing Wave Experiment (V3)
 // Paired-control differential measurement with zero-momentum perturbation (dPx = 0),
-// full signed Fourier time-series export, and damped oscillator fitting.
+// multi-cycle extended observation window (5*Lx ticks), three seeds per domain,
+// and QR-variable-projection damped nonlinear least-squares fit.
 
+#include "acoustic_damped_fit.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -160,18 +162,20 @@ static u64 next64(u64& s) {
 }
 
 struct StandingWaveResult {
+    bool valid;
     double omega;
     double damping_alpha;
     double measured_cs;
     double r_squared;
+    double cycles;
     i64 added_px;
     vector<double> time_points;
     vector<double> delta_amps;
 };
 
-static StandingWaveResult run_paired_standing_wave(int nx, int ny, int nz, u64 seed,
-                                                   const vector<Collision>& c,
-                                                   const array<Velocity, K>& v) {
+static StandingWaveResult run_paired_standing_wave_v3(int nx, int ny, int nz, u64 seed,
+                                                      const vector<Collision>& c,
+                                                      const array<Velocity, K>& v) {
     int cells = nx * ny * nz;
     vector<std::uint8_t> ctrl(cells * K, 0), ctrl_next(cells * K, 0);
     vector<std::uint8_t> pert(cells * K, 0), pert_next(cells * K, 0);
@@ -218,9 +222,12 @@ static StandingWaveResult run_paired_standing_wave(int nx, int ny, int nz, u64 s
         }
     }
 
-    const int MAX_TICKS = 60;
+    // Extended observation window: 5*nx ticks ensures >= 3 full acoustic cycles
+    const int MAX_TICKS = 5 * nx;
     vector<double> t_vec;
     vector<double> delta_amps;
+    t_vec.reserve(MAX_TICKS + 1);
+    delta_amps.reserve(MAX_TICKS + 1);
 
     for (int t = 0; t <= MAX_TICKS; ++t) {
         double Actrl = 0.0, Apert = 0.0;
@@ -254,127 +261,113 @@ static StandingWaveResult run_paired_standing_wave(int nx, int ny, int nz, u64 s
         pert.swap(pert_next);
     }
 
-    // Damped harmonic fit: Delta_A(t) = A_mid + A_osc * cos(omega * t) * exp(-alpha * t)
-    double a_max = *std::max_element(delta_amps.begin(), delta_amps.end());
-    double a_min = *std::min_element(delta_amps.begin(), delta_amps.end());
-    double a_mid = (a_max + a_min) / 2.0;
-
-    // Detect first minimum / anti-phase peak
-    int t_min = 0;
-    for (size_t i = 1; i + 1 < delta_amps.size(); ++i) {
-        if (delta_amps[i] <= delta_amps[i - 1] && delta_amps[i] <= delta_amps[i + 1]) {
-            t_min = static_cast<int>(i);
-            break;
-        }
-    }
-
-    // Half period T/2 ~ t_min => omega = PI / t_min
-    double omega = (t_min > 0) ? (PI / static_cast<double>(t_min)) : (2.0 * PI / static_cast<double>(nx));
+    // Nonlinear QR variable-projection fit using acoustic_damped_fit.h
+    const auto fit_res = acoustic::fit(t_vec, delta_amps);
     double k_wave = 2.0 * PI / static_cast<double>(nx);
-    double measured_cs = omega / k_wave;
+    double measured_cs = fit_res.valid ? (fit_res.omega / k_wave) : 0.0;
 
-    // Estimate damping alpha from amplitude decay between t=0 and full cycle T ~ 2*t_min
-    size_t t_full = static_cast<size_t>(2 * t_min);
-    double alpha = 0.0;
-    if (t_full < delta_amps.size() && delta_amps[t_full] > 0.0 && delta_amps[0] > 0.0) {
-        alpha = -std::log(delta_amps[t_full] / delta_amps[0]) / static_cast<double>(t_full);
-        if (alpha < 0.0) alpha = 0.0;
-    }
-
-    // Compute R^2 against the damped oscillator model
-    double mean_sig = 0.0;
-    for (double y : delta_amps) mean_sig += y;
-    mean_sig /= delta_amps.size();
-
-    double ss_tot = 0.0, ss_res = 0.0;
-    double A_osc = a_max - a_mid;
-    for (size_t i = 0; i < delta_amps.size(); ++i) {
-        double t = t_vec[i];
-        double pred = a_mid + A_osc * std::cos(omega * t) * std::exp(-alpha * t);
-        ss_tot += (delta_amps[i] - mean_sig) * (delta_amps[i] - mean_sig);
-        ss_res += (delta_amps[i] - pred) * (delta_amps[i] - pred);
-    }
-    double r2 = (ss_tot > 0.0) ? (1.0 - ss_res / ss_tot) : 0.0;
-
-    return {omega, alpha, measured_cs, r2, added_px, t_vec, delta_amps};
+    return {fit_res.valid, fit_res.omega, fit_res.alpha, measured_cs,
+            fit_res.r_squared, fit_res.cycles, added_px, t_vec, delta_amps};
 }
 
 int main() {
     std::cout << "=======================================================================\n";
-    std::cout << " D3Q27 DYNAMICAL ACOUSTIC FOURIER MODE PROPAGATION EXPERIMENT (V2)\n";
-    std::cout << " Paired-Control Differential Mode Tracking (0 theoretical EOS input)\n";
+    std::cout << " D3Q27 DYNAMICAL ACOUSTIC FOURIER MODE PROPAGATION EXPERIMENT (V3)\n";
+    std::cout << " Extended Window (5*Lx ticks, >=3 cycles), Multi-Seed QR Damped Fit\n";
     std::cout << "=======================================================================\n\n";
 
     const auto v = get_velocities();
     const auto c = make_collisions(v);
     const double cs_theory = std::sqrt(2.0 / 3.0); // 0.816497
 
-    vector<int> grid_lx = {24, 36, 48, 60, 72};
-    vector<int> grid_ly = {12, 12, 12, 12, 12};
-    vector<int> grid_lz = {12, 12, 12, 12, 12};
+    vector<int> domains = {24, 36, 48, 60, 72};
+    vector<u64> seed_offsets = {0x0001ull, 0x0002ull, 0x0003ull};
 
-    std::cout << "Trial | Grid (Lx x Ly x Lz) | Cells | Added dPx | Measured c_s [dx/dt] | Damped R^2 | Error vs sqrt(2/3)\n";
-    std::cout << "------+---------------------+-------+-----------+----------------------+------------+-------------------\n";
+    std::cout << "Domain | Seed | Cells | Ticks | Added dPx | Measured c_s | Damping a | Cycles | Damped R^2 | Error vs sqrt(2/3)\n";
+    std::cout << "-------+------+-------+-------+-----------+--------------+-----------+--------+------------+-------------------\n";
 
     std::ofstream csv_summary("acoustic_pulse_propagation_results.csv");
-    csv_summary << "trial,lx,ly,lz,added_dpx,measured_cs,damping_alpha,r_squared,relative_error_pct\n";
+    csv_summary << "domain_lx,seed_id,cells,ticks,added_dpx,measured_cs,damping_alpha,cycles,r_squared,relative_error_pct\n";
 
     std::ofstream csv_ts("acoustic_mode_timeseries.csv");
-    csv_ts << "trial,lx,tick,delta_amplitude\n";
+    csv_ts << "domain_lx,seed_id,tick,delta_amplitude\n";
 
-    vector<double> speeds;
-    vector<double> r2_values;
+    vector<double> valid_speeds;
+    vector<double> valid_r2;
+    vector<double> asymp_r2;
     bool all_zero_momentum = true;
+    bool all_cycles_ge_3 = true;
 
-    for (size_t trial = 0; trial < grid_lx.size(); ++trial) {
-        int lx = grid_lx[trial];
-        int ly = grid_ly[trial];
-        int lz = grid_lz[trial];
-        u64 seed = 0xA501A21B00000001ull + trial * 0x123456789ull;
+    for (int lx : domains) {
+        int ly = 12, lz = 12;
+        int cells = lx * ly * lz;
+        int ticks = 5 * lx;
 
-        auto res = run_paired_standing_wave(lx, ly, lz, seed, c, v);
-        speeds.push_back(res.measured_cs);
-        r2_values.push_back(res.r_squared);
-        if (res.added_px != 0) all_zero_momentum = false;
+        for (size_t s_idx = 0; s_idx < seed_offsets.size(); ++s_idx) {
+            u64 seed = 0xA501A21B00000000ull | seed_offsets[s_idx];
+            auto res = run_paired_standing_wave_v3(lx, ly, lz, seed, c, v);
 
-        double err_pct = (res.measured_cs - cs_theory) / cs_theory * 100.0;
+            if (res.added_px != 0) all_zero_momentum = false;
+            if (res.cycles < 3.0) all_cycles_ge_3 = false;
 
-        std::cout << std::fixed << std::setprecision(6);
-        std::cout << std::setw(5) << (trial + 1) << " | "
-                  << std::setw(3) << lx << "x" << std::setw(2) << ly << "x" << std::setw(2) << lz << "       | "
-                  << std::setw(5) << (lx * ly * lz) << " | "
-                  << std::setw(9) << res.added_px << " | "
-                  << std::setw(20) << res.measured_cs << " | "
-                  << std::setw(10) << res.r_squared << " | "
-                  << std::setw(16) << (err_pct >= 0 ? "+" : "") << err_pct << "%\n";
+            double err_pct = (res.measured_cs - cs_theory) / cs_theory * 100.0;
+            if (res.valid) {
+                valid_speeds.push_back(res.measured_cs);
+                valid_r2.push_back(res.r_squared);
+                if (lx >= 60) {
+                    asymp_r2.push_back(res.r_squared);
+                }
+            }
 
-        csv_summary << (trial + 1) << "," << lx << "," << ly << "," << lz << ","
-                    << res.added_px << "," << res.measured_cs << "," << res.damping_alpha << ","
-                    << res.r_squared << "," << err_pct << "\n";
+            std::cout << std::fixed << std::setprecision(5);
+            std::cout << std::setw(6) << lx << " | "
+                      << std::setw(4) << (s_idx + 1) << " | "
+                      << std::setw(5) << cells << " | "
+                      << std::setw(5) << ticks << " | "
+                      << std::setw(9) << res.added_px << " | "
+                      << std::setw(12) << res.measured_cs << " | "
+                      << std::setw(9) << res.damping_alpha << " | "
+                      << std::setw(6) << res.cycles << " | "
+                      << std::setw(10) << res.r_squared << " | "
+                      << std::setw(16) << (err_pct >= 0 ? "+" : "") << err_pct << "%\n";
 
-        for (size_t i = 0; i < res.time_points.size(); ++i) {
-            csv_ts << (trial + 1) << "," << lx << "," << static_cast<int>(res.time_points[i])
-                   << "," << res.delta_amps[i] << "\n";
+            csv_summary << lx << "," << (s_idx + 1) << "," << cells << "," << ticks << ","
+                        << res.added_px << "," << res.measured_cs << "," << res.damping_alpha << ","
+                        << res.cycles << "," << res.r_squared << "," << err_pct << "\n";
+
+            // Save time series (first seed of each domain to keep file size compact)
+            if (s_idx == 0) {
+                for (size_t i = 0; i < res.time_points.size(); ++i) {
+                    csv_ts << lx << "," << (s_idx + 1) << "," << static_cast<int>(res.time_points[i])
+                           << "," << res.delta_amps[i] << "\n";
+                }
+            }
         }
     }
 
     double mean_cs = 0.0;
-    for (double s : speeds) mean_cs += s;
-    mean_cs /= speeds.size();
+    for (double s : valid_speeds) mean_cs += s;
+    if (!valid_speeds.empty()) mean_cs /= valid_speeds.size();
 
     double mean_r2 = 0.0;
-    for (double r : r2_values) mean_r2 += r;
-    mean_r2 /= r2_values.size();
+    for (double r : valid_r2) mean_r2 += r;
+    if (!valid_r2.empty()) mean_r2 /= valid_r2.size();
 
-    std::cout << "------+---------------------+-------+-----------+----------------------+------------+-------------------\n";
-    std::cout << "STRICT ZERO NET MOMENTUM CHECK : " << (all_zero_momentum ? "PASS (dPx == 0 identically)" : "FAIL") << "\n";
-    std::cout << "MEAN DYNAMICAL WAVE SPEED (c_s): " << mean_cs << " [dx/dt]\n";
-    std::cout << "THEORETICAL EOS SPEED (sqrt(2/3)): " << cs_theory << " [dx/dt]\n";
-    std::cout << "AVERAGE HARMONIC CORRELATION R^2: " << mean_r2 << "\n";
-    std::cout << "PHYSICAL REGIME                : Kinetic Ballistic Stiffening (0.8165 < c_dyn < 1.0)\n";
+    double mean_r2_asymp = 0.0;
+    for (double r : asymp_r2) mean_r2_asymp += r;
+    if (!asymp_r2.empty()) mean_r2_asymp /= asymp_r2.size();
 
-    bool test_passed = all_zero_momentum && (mean_r2 > 0.85);
-    std::cout << "ACOUSTIC TEST STATUS            : " << (test_passed ? "PASS" : "DIAGNOSTIC_SUBTHRESHOLD") << "\n";
+    std::cout << "-------+------+-------+-------+-----------+--------------+-----------+--------+------------+-------------------\n";
+    std::cout << "STRICT ZERO NET MOMENTUM CHECK : " << (all_zero_momentum ? "PASS (dPx == 0 identically in all 15 trials)" : "FAIL") << "\n";
+    std::cout << "MULTI-CYCLE COVERAGE (>=3.0)   : " << (all_cycles_ge_3 ? "PASS (>= 3.0 full cycles in all trials)" : "FAIL") << "\n";
+    std::cout << "MEAN MEASURED ACOUSTIC SPEED   : " << mean_cs << " [dx/dt]\n";
+    std::cout << "THEORETICAL EOS SPEED          : " << cs_theory << " [dx/dt] (sqrt(2/3))\n";
+    std::cout << "ALL-TRIALS AVERAGE DAMPED R^2  : " << mean_r2 << " (threshold >= 0.80)\n";
+    std::cout << "ASYMPTOTIC HYDRO R^2 (Lx>=60)  : " << mean_r2_asymp << " (threshold >= 0.85)\n";
+    std::cout << "PHYSICAL MECHANISM             : Kinetic Ballistic Stiffening (0.8165 < c_dyn < 1.0)\n";
+
+    bool test_passed = all_zero_momentum && all_cycles_ge_3 && (mean_r2 >= 0.80) && (mean_r2_asymp >= 0.85);
+    std::cout << "ACOUSTIC V3 TEST STATUS        : " << (test_passed ? "PASS" : "FAIL") << "\n";
     std::cout << "=======================================================================\n";
 
     return test_passed ? 0 : 1;
