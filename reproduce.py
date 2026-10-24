@@ -37,7 +37,10 @@ def run():
         print("[FAIL] Acoustic compilation failed!")
         sys.exit(1)
     res = subprocess.run([os.path.join(".", "asolaria_acoustic_pulse_propagation.exe")])
-    # Note: acoustic experiment output is logged to acoustic_pulse_propagation_results.csv
+    if res.returncode != 0:
+        print("[FAIL] Acoustic standing wave experiment failed quality threshold!")
+        sys.exit(1)
+    print("[PASS] Acoustic standing wave experiment completed and passed quality threshold.")
 
     # 4. Compile and verify core discrete fluid simulation
     print("\n[4/4] Compiling and running core discrete lattice gas simulation...")
