@@ -19,7 +19,7 @@ def run():
 
     # 2. Run calibration on 300GB Host8 Room Substrate
     room_path = "D:/ASOLARIA-HOST8-ROOMS-300G/sector-000.rooms"
-    print(f"\n[2/3] Executing calibration on 300GB Host8 room substrate:\n      {room_path}")
+    print(f"\n[2/4] Executing calibration on 300GB Host8 room substrate:\n      {room_path}")
     if os.path.exists(room_path):
         res = subprocess.run([os.path.join(".", "asolaria_fluid_hydro_calibration.exe"), room_path])
         if res.returncode != 0:
@@ -28,8 +28,19 @@ def run():
     else:
         print(f"[WARN] 300GB room file not found at {room_path}; skipping live substrate probe.")
 
-    # 3. Compile and verify core discrete fluid simulation
-    print("\n[3/3] Compiling and running core discrete lattice gas simulation...")
+    # 3. Compile and run direct dynamical acoustic standing wave experiment
+    print("\n[3/4] Compiling and running acoustic standing wave propagation experiment...")
+    cmd_compile_ac = ["g++", "-O3", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-static",
+                      "asolaria_acoustic_pulse_propagation.cpp", "-o", "asolaria_acoustic_pulse_propagation.exe"]
+    res = subprocess.run(cmd_compile_ac)
+    if res.returncode != 0:
+        print("[FAIL] Acoustic compilation failed!")
+        sys.exit(1)
+    res = subprocess.run([os.path.join(".", "asolaria_acoustic_pulse_propagation.exe")])
+    # Note: acoustic experiment output is logged to acoustic_pulse_propagation_results.csv
+
+    # 4. Compile and verify core discrete fluid simulation
+    print("\n[4/4] Compiling and running core discrete lattice gas simulation...")
     cmd_compile_core = ["g++", "-O3", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-static", 
                         "asolaria_ternary_fluid_v1.cpp", "-o", "asolaria_ternary_fluid_v1.exe"]
     res = subprocess.run(cmd_compile_core)
