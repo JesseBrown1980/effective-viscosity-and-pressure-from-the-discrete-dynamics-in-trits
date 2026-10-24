@@ -1,0 +1,5 @@
+*.exe
+*.o
+*.obj
+test_results.csv
+reproduced_results.csv
