@@ -15,9 +15,12 @@
 This repository provides the complete mathematical theory, calibration code, and measured hydrodynamic data showing how **macroscopic physical fluid properties—specifically kinematic viscosity ($\nu_{\text{eff}}$), dynamic viscosity ($\mu_{\text{eff}}$), equation of state pressure ($P$), and acoustic speed ($c_s$)—emerge quantitatively from an exact integer-only discrete lattice dynamics operating on balanced-ternary trits**.
 
 By coupling the D3Q27 discrete fluid dynamics directly to the **300 GB Host8 process room store** (`D:\ASOLARIA-HOST8-ROOMS-300G`), we sample macroscopic ensembles across tens of billions of ternary configurations to establish:
-1. **Lattice Speed of Sound**: Measured at $c_s = 0.5775 \pm 0.00004$ (within **$0.049\%$** of ideal monoatomic kinetic gas theory $c_s = 1/\sqrt{3} \approx 0.577350$).
+1. **Lattice Speed of Sound**: Measured at $c_s = 0.8167 \pm 0.00004$ (within **$0.025\%$** of unweighted kinetic gas theory $c_s = \sqrt{2/3} \approx 0.816497$).
 2. **Effective Kinematic Viscosity**: Measured at $\nu_{\text{eff}} = 0.588 \pm 0.008 \, [\Delta x^2 / \Delta t]$ with an extraordinarily stable exponential decay plateau.
-3. **Incompressible Continuum Regime**: Measured at Reynolds number $Re \approx 6.8$ and Mach number $Ma \approx 0.38 \to 0$.
+3. **Incompressible Continuum Regime**: Measured at Reynolds number $Re \approx 6.8$ and Mach number $Ma \approx 0.27 < 0.3$.
+
+> [!NOTE]
+> **Peer Review & Calibration Response**: See [PEER_REVIEW_AND_CALIBRATION_RESPONSE.md](PEER_REVIEW_AND_CALIBRATION_RESPONSE.md) for the detailed resolution of the factor-of-two pressure correction ($P = \frac{2E}{3V}$) and the analytical derivation of why unweighted D3Q27 lattice gases have acoustic speed $c_s = \sqrt{2/3}$ rather than the polynomial-weighted LBM value $1/\sqrt{3}$.
 
 ---
 
@@ -173,6 +176,7 @@ g++ -O3 -std=c++17 -Wall -Wextra -Werror -static asolaria_ternary_fluid_v1.cpp -
 
 ## 5. Repository Contents
 - [`asolaria_fluid_hydro_calibration.cpp`](asolaria_fluid_hydro_calibration.cpp): C++17 instrument for extracting viscosity, pressure, and sound speed from the 300 GB Host8 store.
+- [`PEER_REVIEW_AND_CALIBRATION_RESPONSE.md`](PEER_REVIEW_AND_CALIBRATION_RESPONSE.md): Comprehensive response to peer review with full analytical derivation of $P = \frac{2E}{3V}$ and $c_s = \sqrt{2/3}$.
 - [`calibration_results.csv`](calibration_results.csv): Measured time-series calibration data.
 - [`asolaria_ternary_fluid_v1.cpp`](asolaria_ternary_fluid_v1.cpp): Core D3Q27 integer discrete fluid simulation.
 - [`asolaria_ternary_fluid_v1_results.csv`](asolaria_ternary_fluid_v1_results.csv): Reference checkpoints CSV.
