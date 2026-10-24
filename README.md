@@ -119,7 +119,7 @@ The experiment was initialized using background microstates streamed directly fr
 | Substrate Location | Density $\rho_0$ [trits/cell] | Pressure $P_0$ | Measured Sound Speed $c_s$ | Theoretical $c_{s, \text{theory}} = \sqrt{2/3}$ | Relative Error |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Sector 000** | $27.114969$ | $18.085584$ | **$0.816698$** | $0.816497$ | **$+0.025\%$** |
-| **Sector 187 (Ground Zero)** | $27.005401$ | $18.015240$ | **$0.816742$** | $0.816497$ | **$+0.030\%$** |
+| **Sector 187 (Ground Zero)** | $27.005401$ | $18.015240$ | **$0.816760$** | $0.816497$ | **$+0.032\%$** |
 
 Ratio $c_s^2 / (2/3) = 1.000494$ ($0.049\%$ deviation from unweighted lattice gas theory).
 
@@ -138,11 +138,11 @@ Ratio $c_s^2 / (2/3) = 1.000494$ ($0.049\%$ deviation from unweighted lattice ga
 | **60** | 688 | 3.8052 | 0.0634 | 0.5205 |
 | **66** | 380 | 4.3988 | 0.0666 | 0.5470 |
 
-- **Viscous Plateau ($t \in [18, 42]$)**: Decay rate $\gamma$ remains constant at $0.0701 \pm 0.001$, confirming strict Newtonian linear decay.
-- **Mean Kinematic Viscosity**: $\nu_{\text{eff}} = 0.588 \pm 0.008 \, [\Delta x^2 / \Delta t]$
-- **Dynamic Viscosity**: $\mu_{\text{eff}} \approx 15.91 \, [\text{trits} / (\Delta x \Delta t)]$
-- **Reynolds Number**: $Re = \frac{U L}{\nu_{\text{eff}}} \approx 6.8$ (laminar Stokes flow)
-- **Mach Number**: $Ma = \frac{U}{c_s} = \frac{0.221}{0.8167} \approx 0.270 < 0.3$ (strictly incompressible continuum regime)
+- **Plateau Window ($t \in [18, 42]$)**: Pure fundamental mode linear Stokes decay yields $\nu_{\text{eff}} = 0.580425 \pm 0.0075 \, [\Delta x^2 / \Delta t]$.
+- **Full Trajectory Series ($t \in [6, 66]$)**: Unwindowed mean across all 11 observations is $\nu_{\text{eff}} = 0.593648 \pm 0.0652 \, [\Delta x^2 / \Delta t]$ (incorporating initial higher-harmonic transient decay at $t=6, 12$ and late-stage integer noise near zero at $t \ge 54$).
+- **Dynamic Viscosity**: $\mu_{\text{eff}} = \rho_0 \nu_{\text{eff}} \approx 15.74 \, [\text{trits} / (\Delta x \Delta t)]$ (plateau) or $16.10$ (full series).
+- **Reynolds Number**: $Re = \frac{U L}{\nu_{\text{eff}}} \approx 6.8$ (laminar Stokes flow).
+- **Mach Number**: $Ma = \frac{U}{c_s} = \frac{0.221}{0.8167} \approx 0.270$ (low-Mach weakly compressible regime).
 
 ---
 
@@ -176,7 +176,8 @@ g++ -O3 -std=c++17 -Wall -Wextra -Werror -static asolaria_ternary_fluid_v1.cpp -
 
 ## 5. Repository Contents
 - [`asolaria_fluid_hydro_calibration.cpp`](asolaria_fluid_hydro_calibration.cpp): C++17 instrument for extracting viscosity, pressure, and sound speed from the 300 GB Host8 store.
-- [`PEER_REVIEW_AND_CALIBRATION_RESPONSE.md`](PEER_REVIEW_AND_CALIBRATION_RESPONSE.md): Comprehensive response to peer review with full analytical derivation of $P = \frac{2E}{3V}$ and $c_s = \sqrt{2/3}$.
+- [`asolaria_acoustic_pulse_propagation.cpp`](asolaria_acoustic_pulse_propagation.cpp): Direct dynamical density pulse propagation experiment tracking discrete wave displacement.
+- [`PEER_REVIEW_AND_CALIBRATION_RESPONSE.md`](PEER_REVIEW_AND_CALIBRATION_RESPONSE.md): Comprehensive response to peer review with full analytical derivation of $P = \frac{2E}{3V}$, $c_s = \sqrt{2/3}$, Sector 187 reconciliation, and viscosity windowing.
 - [`calibration_results.csv`](calibration_results.csv): Measured time-series calibration data.
 - [`asolaria_ternary_fluid_v1.cpp`](asolaria_ternary_fluid_v1.cpp): Core D3Q27 integer discrete fluid simulation.
 - [`asolaria_ternary_fluid_v1_results.csv`](asolaria_ternary_fluid_v1_results.csv): Reference checkpoints CSV.
